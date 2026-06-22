@@ -1,3 +1,7 @@
+> [!note]
+> 该仓库用于存档 amll-dev 在替换许可证为正确的 AGPL 前的许可冲突版本  
+> 当上游仓库改用 AGPL 后，该仓库将会归档
+
 <div align=center>
 
 <img src="./public/logo.svg" align="center" width="256">
