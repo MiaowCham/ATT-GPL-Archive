@@ -1,23 +1,15 @@
 import {
 	ArrowHookUpLeft24Regular,
-	Dismiss24Regular,
+	ChevronRight24Regular,
 	Image24Regular,
 } from "@fluentui/react-icons";
-import {
-	Button,
-	Box,
-	Card,
-	Flex,
-	Heading,
-	IconButton,
-	Slider,
-	Text,
-} from "@radix-ui/themes";
+import { Button, Card, Flex, IconButton, Slider, Text } from "@radix-ui/themes";
 import { openDB } from "idb";
 import { atom, useAtom, useAtomValue, useSetAtom } from "jotai";
 import { atomWithStorage } from "jotai/utils";
 import { useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { SettingsRow } from "./SettingsGroup";
 
 const CUSTOM_BACKGROUND_DB = "amll-custom-background";
 const CUSTOM_BACKGROUND_STORE = "background-image";
@@ -118,22 +110,19 @@ export const customBackgroundImageAtom = atom(
 	},
 );
 
-export const customBackgroundImageInitAtom = atom(
-	null,
-	async (get, set) => {
-		const previous = get(customBackgroundImageValueAtom);
-		if (previous) {
-			URL.revokeObjectURL(previous);
-		}
-		const blob = await readCustomBackgroundBlob();
-		if (!blob) {
-			set(customBackgroundImageValueAtom, null);
-			return;
-		}
-		const url = URL.createObjectURL(blob);
-		set(customBackgroundImageValueAtom, url);
-	},
-);
+export const customBackgroundImageInitAtom = atom(null, async (get, set) => {
+	const previous = get(customBackgroundImageValueAtom);
+	if (previous) {
+		URL.revokeObjectURL(previous);
+	}
+	const blob = await readCustomBackgroundBlob();
+	if (!blob) {
+		set(customBackgroundImageValueAtom, null);
+		return;
+	}
+	const url = URL.createObjectURL(blob);
+	set(customBackgroundImageValueAtom, url);
+});
 
 export const customBackgroundOpacityAtom = atomWithStorage(
 	"customBackgroundOpacity",
@@ -155,11 +144,7 @@ export const customBackgroundBrightnessAtom = atomWithStorage(
 	1,
 );
 
-export const SettingsCustomBackgroundSettings = ({
-	onClose,
-}: {
-	onClose: () => void;
-}) => {
+export const SettingsCustomBackgroundSettings = () => {
 	const customBackgroundImage = useAtomValue(customBackgroundImageAtom);
 	const setCustomBackgroundImage = useSetAtom(customBackgroundImageAtom);
 	const [customBackgroundOpacity, setCustomBackgroundOpacity] = useAtom(
@@ -186,15 +171,6 @@ export const SettingsCustomBackgroundSettings = ({
 
 	return (
 		<Flex direction="column" gap="4">
-			<Flex align="center" justify="between">
-				<Heading size="4">
-					{t("settings.common.customBackground", "自定义背景")}
-				</Heading>
-				<IconButton variant="ghost" onClick={onClose}>
-					<Dismiss24Regular />
-				</IconButton>
-			</Flex>
-
 			<Card>
 				<Flex direction="column" gap="3">
 					<Text size="1" color="gray">
@@ -236,7 +212,9 @@ export const SettingsCustomBackgroundSettings = ({
 			<Card>
 				<Flex direction="column" gap="2">
 					<Flex align="center" justify="between">
-						<Text>{t("settings.common.customBackgroundOpacity", "透明度")}</Text>
+						<Text>
+							{t("settings.common.customBackgroundOpacity", "透明度")}
+						</Text>
 						<Flex align="center" gap="2">
 							<Text wrap="nowrap" color="gray" size="1">
 								{Math.round(customBackgroundOpacity * 100)}%
@@ -331,7 +309,9 @@ export const SettingsCustomBackgroundSettings = ({
 			<Card>
 				<Flex direction="column" gap="2">
 					<Flex align="center" justify="between">
-						<Text>{t("settings.common.customBackgroundBrightness", "亮度")}</Text>
+						<Text>
+							{t("settings.common.customBackgroundBrightness", "亮度")}
+						</Text>
 						<Flex align="center" gap="2">
 							<Text wrap="nowrap" color="gray" size="1">
 								{Math.round(customBackgroundBrightness * 100)}%
@@ -369,31 +349,23 @@ export const SettingsCustomBackgroundCard = ({
 	const { t } = useTranslation();
 
 	return (
-		<Card style={{ width: "100%", marginBottom: "var(--space-1)" }}>
-			<Flex gap="3" align="center">
-				<Image24Regular />
-				<Box flexGrow="1">
-					<Flex align="center" justify="between" gap="4">
-						<Flex direction="column" gap="1">
-							<Text>{t("settings.common.customBackground", "自定义背景")}</Text>
-							<Text size="1" color="gray">
-								{customBackgroundImage
-									? t(
-											"settings.common.customBackgroundEnabled",
-											"已设置背景",
-										)
-									: t(
-											"settings.common.customBackgroundDesc",
-											"选择一张图片作为背景。",
-										)}
-							</Text>
-						</Flex>
-						<Button variant="soft" onClick={onOpen}>
-							{t("settings.common.customBackgroundManage", "设置")}
-						</Button>
-					</Flex>
-				</Box>
-			</Flex>
-		</Card>
+		<SettingsRow
+			icon={<Image24Regular />}
+			title={t("settings.common.customBackground", "自定义背景")}
+			description={
+				customBackgroundImage
+					? t("settings.common.customBackgroundEnabled", "已设置背景")
+					: t("settings.common.customBackgroundDesc", "选择一张图片作为背景。")
+			}
+			action={
+				<IconButton
+					variant="ghost"
+					aria-label={t("settings.common.customBackgroundManage", "设置")}
+					onClick={onOpen}
+				>
+					<ChevronRight24Regular />
+				</IconButton>
+			}
+		/>
 	);
 };

@@ -15,18 +15,25 @@ import { useTranslation } from "react-i18next";
 import { toast } from "react-toastify";
 import { uid } from "uid";
 import { audioEngine } from "$/modules/audio/audio-engine";
+import { extractAudioMetadata } from "$/modules/audio/metadata-extractor";
 import { getProjectList } from "$/modules/project/autosave/autosave";
+import { applyDefaultTtmlAuthorMetadata } from "$/modules/project/logic/default-metadata";
 import { isProjectMatch } from "$/modules/project/logic/project-match";
 import { parseLyric as parseTTML } from "$/modules/project/logic/ttml-parser";
 import { getSuggestedTtmlFileName } from "$/modules/project/logic/metadata-filename";
+import {
+	defaultTtmlAuthorGithubAtom,
+	defaultTtmlAuthorGithubLoginAtom,
+} from "$/modules/settings/states";
 import { confirmDialogAtom } from "$/states/dialogs.ts";
 import {
 	isDirtyAtom,
+	lyricLinesAtom,
 	newLyricLinesAtom,
 	projectIdAtom,
 	saveFileNameAtom,
 } from "$/states/main.ts";
-import type { TTMLLyric } from "$/types/ttml";
+import type { TTMLLyric, TTMLMetadata } from "$/types/ttml";
 import { log, error as logError } from "$/utils/logging.ts";
 import { parseLrc } from "$/utils/parse-lrc";
 
@@ -54,12 +61,42 @@ const AUDIO_EXTENSIONS = new Set([
 	"au",
 ]);
 
+const mergeExtractedMetadata = (
+	currentMetadata: TTMLMetadata[],
+	extractedMetadata: TTMLMetadata[],
+) => {
+	let changed = false;
+	for (const extracted of extractedMetadata) {
+		const values = extracted.value
+			.map((value) => value.trim())
+			.filter((value) => value !== "");
+		if (values.length === 0) continue;
+
+		const current = currentMetadata.find((item) => item.key === extracted.key);
+		if (!current) {
+			currentMetadata.push({ key: extracted.key, value: values });
+			changed = true;
+			continue;
+		}
+
+		if (current.value.some((value) => value.trim() !== "")) continue;
+		current.value = values;
+		changed = true;
+	}
+	return changed;
+};
+
 export const useFileOpener = () => {
 	const setNewLyricLines = useSetAtom(newLyricLinesAtom);
+	const setLyricLines = useSetAtom(lyricLinesAtom);
 	const setProjectId = useSetAtom(projectIdAtom);
 	const setSaveFileName = useSetAtom(saveFileNameAtom);
 	const setConfirmDialog = useSetAtom(confirmDialogAtom);
 	const isDirty = useAtomValue(isDirtyAtom);
+	const defaultTtmlAuthorGithub = useAtomValue(defaultTtmlAuthorGithubAtom);
+	const defaultTtmlAuthorGithubLogin = useAtomValue(
+		defaultTtmlAuthorGithubLoginAtom,
+	);
 	const { t } = useTranslation();
 
 	const normalizeLyricLines = useCallback(
@@ -89,7 +126,33 @@ export const useFileOpener = () => {
 
 			try {
 				if (AUDIO_EXTENSIONS.has(ext)) {
-					audioEngine.loadMusic(file);
+					void audioEngine.loadMusic(file);
+					void extractAudioMetadata(file)
+						.then((metadata) => {
+							setLyricLines((prev) => {
+								const nextMetadata = prev.metadata.map((item) => ({
+									...item,
+									value: [...item.value],
+								}));
+								const metadataChanged = mergeExtractedMetadata(
+									nextMetadata,
+									metadata,
+								);
+								const defaultChanged = applyDefaultTtmlAuthorMetadata(
+									nextMetadata,
+									{
+										githubId: defaultTtmlAuthorGithub,
+										githubLogin: defaultTtmlAuthorGithubLogin,
+									},
+								);
+
+								if (!metadataChanged && !defaultChanged) return prev;
+								return { ...prev, metadata: nextMetadata };
+							});
+						})
+						.catch((e) => {
+							logError(`Failed to extract audio metadata: ${file.name}`, e);
+						});
 					return;
 				}
 
@@ -135,6 +198,11 @@ export const useFileOpener = () => {
 					logError("解析项目数据时失败", e);
 				}
 
+				applyDefaultTtmlAuthorMetadata(lyricData.metadata, {
+					githubId: defaultTtmlAuthorGithub,
+					githubLogin: defaultTtmlAuthorGithubLogin,
+				});
+
 				setProjectId(resolvedProjectId);
 				setNewLyricLines(lyricData);
 				const suggestedFile = getSuggestedTtmlFileName(lyricData.metadata);
@@ -146,7 +214,16 @@ export const useFileOpener = () => {
 				toast.error(t("error.openFileFailed", "打开文件失败"));
 			}
 		},
-		[setNewLyricLines, setProjectId, setSaveFileName, normalizeLyricLines, t],
+		[
+			setNewLyricLines,
+			setLyricLines,
+			setProjectId,
+			setSaveFileName,
+			normalizeLyricLines,
+			defaultTtmlAuthorGithub,
+			defaultTtmlAuthorGithubLogin,
+			t,
+		],
 	);
 
 	const openFile = useCallback(
